@@ -293,13 +293,61 @@ function updateYearTrendChart() {
     byYear[d.year].female += d.femaleStudent;
   });
 
-  const years = Object.keys(byYear).sort((a, b) => a - b);
+  const years = Object.keys(byYear).sort((a, b) => a - b).map(Number);
   const maleData = years.map(year => byYear[year].male);
   const femaleData = years.map(year => byYear[year].female);
 
   if (charts.yearTrend) charts.yearTrend.destroy();
 
   const ctx = document.getElementById("yearTrendChart").getContext("2d");
+  
+  // プラグインを作成してデータ欠損区間を網掛けで表示
+  const missingDataPlugin = {
+    id: 'missingDataBackground',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      const xScale = chart.scales.x;
+      const yScale = chart.scales.y;
+      
+      // データ欠損区間（2007-2009年）
+      const missingRanges = [
+        { start: 2007, end: 2009 }
+      ];
+      
+      missingRanges.forEach(range => {
+        // 範囲内の最初と最後のインデックスを見つける
+        const startIdx = years.indexOf(range.start);
+        const endIdx = years.indexOf(range.end);
+        
+        if (startIdx !== -1 && endIdx !== -1) {
+          const startPixel = xScale.getPixelForValue(startIdx);
+          const endPixel = xScale.getPixelForValue(endIdx);
+          
+          // 半透明の灰色で塗りつぶし
+          ctx.fillStyle = 'rgba(200, 200, 200, 0.15)';
+          ctx.fillRect(startPixel, yScale.top, endPixel - startPixel, yScale.bottom - yScale.top);
+          
+          // 網線パターンを描画
+          ctx.strokeStyle = 'rgba(200, 200, 200, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          
+          // 垂直線を描画
+          ctx.beginPath();
+          ctx.moveTo(startPixel, yScale.top);
+          ctx.lineTo(startPixel, yScale.bottom);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(endPixel, yScale.top);
+          ctx.lineTo(endPixel, yScale.bottom);
+          ctx.stroke();
+          
+          ctx.setLineDash([]);
+        }
+      });
+    }
+  };
+
   charts.yearTrend = new Chart(ctx, {
     type: "line",
     data: {
@@ -312,6 +360,10 @@ function updateYearTrendChart() {
           backgroundColor: "rgba(255, 179, 217, 0.1)",
           borderWidth: 2,
           tension: 0.3,
+          pointRadius: 5,
+          pointBackgroundColor: "#FFB3D9",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
         },
         {
           label: "男",
@@ -320,16 +372,40 @@ function updateYearTrendChart() {
           backgroundColor: "rgba(179, 229, 252, 0.1)",
           borderWidth: 2,
           tension: 0.3,
+          pointRadius: 5,
+          pointBackgroundColor: "#B3E5FC",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
         }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: true,
+      layout: {
+        padding: {
+          top: 30
+        }
+      },
       plugins: {
         legend: {
           position: "top",
         },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          padding: 12,
+          titleFont: { size: 13 },
+          bodyFont: { size: 12 },
+          callbacks: {
+            afterBody: function(tooltipItems) {
+              const yearIdx = tooltipItems[0].dataIndex;
+              if (yearIdx >= 1 && yearIdx <= 3) {
+                return ['※ データ欠損区間'];
+              }
+              return [];
+            }
+          }
+        }
       },
       scales: {
         y: {
@@ -338,10 +414,12 @@ function updateYearTrendChart() {
             callback: function(value) {
               return value.toLocaleString();
             }
-          }
+          },
+          max: Math.max(...maleData, ...femaleData) * 1.15
         },
       },
     },
+    plugins: [missingDataPlugin]
   });
 }
 
