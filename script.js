@@ -104,6 +104,7 @@ function updateDashboard() {
   // セクション表示
   document.getElementById("summarySection").classList.remove("hidden");
   document.getElementById("chartsSection").classList.remove("hidden");
+  document.getElementById("changeRateSection").classList.remove("hidden");
   document.getElementById("teacherSection").classList.remove("hidden");
   document.getElementById("tableSection").classList.remove("hidden");
 
@@ -145,6 +146,7 @@ function updateCharts() {
   updateTypeChart();
   updateYearTrendChart();
   updateTeacherChart();
+  updateChangeRateChart();
 }
 
 // 性別生徒数チャート
@@ -456,3 +458,96 @@ document.getElementById("nextPage").addEventListener("click", function () {
     updateTable();
   }
 });
+
+// 年次間の生徒数変化率チャート
+function updateChangeRateChart() {
+  const byYear = {};
+  filteredData.forEach(d => {
+    if (!byYear[d.year]) {
+      byYear[d.year] = { male: 0, female: 0, total: 0 };
+    }
+    byYear[d.year].male += d.maleStudent;
+    byYear[d.year].female += d.femaleStudent;
+    byYear[d.year].total += d.totalStudent;
+  });
+
+  const years = Object.keys(byYear).sort((a, b) => a - b).map(Number);
+  
+  // 前年度比の変化率を計算
+  const labels = [];
+  const maleChangeData = [];
+  const femaleChangeData = [];
+  const totalChangeData = [];
+
+  for (let i = 1; i < years.length; i++) {
+    const prevYear = years[i - 1];
+    const currYear = years[i];
+    
+    const prevData = byYear[prevYear];
+    const currData = byYear[currYear];
+    
+    const maleChange = ((currData.male - prevData.male) / prevData.male) * 100;
+    const femaleChange = ((currData.female - prevData.female) / prevData.female) * 100;
+    const totalChange = ((currData.total - prevData.total) / prevData.total) * 100;
+    
+    labels.push(prevYear + "→" + currYear);
+    maleChangeData.push(maleChange);
+    femaleChangeData.push(femaleChange);
+    totalChangeData.push(totalChange);
+  }
+
+  if (charts.changeRate) charts.changeRate.destroy();
+
+  const ctx = document.getElementById("changeRateChart").getContext("2d");
+  charts.changeRate = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: "男生徒数変化率",
+          data: maleChangeData,
+          backgroundColor: "#FFB3D9",
+          borderColor: "#FFC0E0",
+          borderWidth: 1,
+        },
+        {
+          label: "女生徒数変化率",
+          data: femaleChangeData,
+          backgroundColor: "#B3E5FC",
+          borderColor: "#C0F0FF",
+          borderWidth: 1,
+        },
+        {
+          label: "計の変化率",
+          data: totalChangeData,
+          backgroundColor: "#D9A5FF",
+          borderColor: "#E6C0FF",
+          borderWidth: 1,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "top",
+        },
+      },
+      scales: {
+        y: {
+          ticks: {
+            callback: function(value) {
+              return value.toFixed(1) + "%";
+            }
+          },
+          title: {
+            display: true,
+            text: "前年度比変化率"
+          }
+        },
+      },
+    },
+  });
+}
