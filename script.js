@@ -32,9 +32,22 @@ function parseJSON(data) {
     throw new Error("JSONはオブジェクトの配列である必要があります");
   }
 
-  rawData = data.map(item => {
+  // 重複した「合計」エントリを除外してデータをクリーニング
+  const cleanedData = data.filter(item => {
+    // typeが「合計」で、categoryが「合計」の場合は除外（重複データ）
+    if (item.type === "合計" && item.category === "合計") {
+      return false;
+    }
+    return true;
+  });
+
+  rawData = cleanedData.map(item => {
     const maleStudent = item.population?.sutudent?.data?.find(d => d.type === "男")?.population || 0;
     const femaleStudent = item.population?.sutudent?.data?.find(d => d.type === "女")?.population || 0;
+    
+    // null値を0に変換
+    const validMale = maleStudent === null ? 0 : maleStudent;
+    const validFemale = femaleStudent === null ? 0 : femaleStudent;
     
     return {
       year: item.year,
@@ -42,9 +55,9 @@ function parseJSON(data) {
       type: item.type,
       category: item.category,
       teacher: item.population?.teacher || 0,
-      maleStudent: maleStudent,
-      femaleStudent: femaleStudent,
-      totalStudent: maleStudent + femaleStudent
+      maleStudent: validMale,
+      femaleStudent: validFemale,
+      totalStudent: validMale + validFemale
     };
   });
 
@@ -293,16 +306,16 @@ function updateYearTrendChart() {
       labels: years.map(y => y + "年度"),
       datasets: [
         {
-          label: "男",
-          data: maleData,
+          label: "女",
+          data: femaleData,
           borderColor: "#FFB3D9",
           backgroundColor: "rgba(255, 179, 217, 0.1)",
           borderWidth: 2,
           tension: 0.3,
         },
         {
-          label: "女",
-          data: femaleData,
+          label: "男",
+          data: maleData,
           borderColor: "#B3E5FC",
           backgroundColor: "rgba(179, 229, 252, 0.1)",
           borderWidth: 2,
