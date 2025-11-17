@@ -5,15 +5,20 @@ let currentPage = 1;
 let itemsPerPage = 25;
 let charts = {};
 
-// CSVファイルの読み込み
-document.getElementById("csvFile").addEventListener("change", function (e) {
+// JSONファイルの読み込み
+document.getElementById("jsonFile").addEventListener("change", function (e) {
   const file = e.target.files[0];
   if (!file) return;
 
   const reader = new FileReader();
   reader.onload = function (e) {
     const text = e.target.result;
-    parseCSV(text);
+    try {
+      parseJSON(JSON.parse(text));
+    } catch (error) {
+      document.getElementById("uploadStatus").innerHTML =
+        '<span style="color: #f56565;">JSONの読み込みに失敗しました: ' + error.message + '</span>';
+    }
   };
   reader.readAsText(file, "UTF-8");
 
@@ -21,34 +26,35 @@ document.getElementById("csvFile").addEventListener("change", function (e) {
     '<span style="color: #48bb78;">読み込み中...</span>';
 });
 
-// CSVパース関数
-function parseCSV(text) {
-  const lines = text.split("\n").filter((line) => line.trim());
-  const headers = lines[0].split(",");
-
-  rawData = [];
-  for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(",");
-    if (values.length >= 7) {
-      rawData.push({
-        yearMonth: values[0].trim(),
-        originalDrugName: values[1].trim(),
-        originalDrugPrice: parseFloat(values[2]) || 0,
-        genericDrugName: values[3].trim(),
-        genericDrugPrice: parseFloat(values[4]) || 0,
-        quantity: parseFloat(values[5]) || 0,
-        unit: values[6].trim(),
-        priceDiff: (parseFloat(values[2]) || 0) - (parseFloat(values[4]) || 0),
-      });
-    }
+// JSONパース関数
+function parseJSON(data) {
+  if (!Array.isArray(data)) {
+    throw new Error("JSONはオブジェクトの配列である必要があります");
   }
 
-  filteredData = [...rawData];
+  rawData = data.map(item => {
+    const maleStudent = item.population?.sutudent?.data?.find(d => d.type === "男")?.population || 0;
+    const femaleStudent = item.population?.sutudent?.data?.find(d => d.type === "女")?.population || 0;
+    
+    return {
+      year: item.year,
+      school: item.school,
+      type: item.type,
+      category: item.category,
+      teacher: item.population?.teacher || 0,
+      maleStudent: maleStudent,
+      femaleStudent: femaleStudent,
+      totalStudent: maleStudent + femaleStudent
+    };
+  });
 
+  filteredData = [...rawData];
+  
   if (rawData.length > 0) {
     document.getElementById(
       "uploadStatus"
     ).innerHTML = `<span style="color: #48bb78;">✓ ${rawData.length}件のデータを読み込みました</span>`;
+    initializeFilters();
     updateDashboard();
   } else {
     document.getElementById("uploadStatus").innerHTML =
@@ -56,12 +62,49 @@ function parseCSV(text) {
   }
 }
 
+// フィルター初期化
+function initializeFilters() {
+  // 年度フィルター
+  const years = [...new Set(rawData.map(d => d.year))].sort((a, b) => a - b);
+  const yearFilter = document.getElementById("yearFilter");
+  years.forEach(year => {
+    const option = document.createElement("option");
+    option.value = year;
+    option.textContent = year + "年度";
+    yearFilter.appendChild(option);
+  });
+
+  // フィルターセクション表示
+  document.getElementById("filterSection").classList.remove("hidden");
+}
+
+// フィルター変更イベント
+document.getElementById("yearFilter").addEventListener("change", applyFilters);
+document.getElementById("typeFilter").addEventListener("change", applyFilters);
+document.getElementById("categoryFilter").addEventListener("change", applyFilters);
+
+// フィルター適用
+function applyFilters() {
+  const year = document.getElementById("yearFilter").value;
+  const type = document.getElementById("typeFilter").value;
+  const category = document.getElementById("categoryFilter").value;
+
+  filteredData = rawData.filter(row => {
+    return (!year || row.year == year) &&
+           (!type || row.type === type) &&
+           (!category || row.category === category);
+  });
+
+  currentPage = 1;
+  updateDashboard();
+}
+
 // ダッシュボード更新
 function updateDashboard() {
   // セクション表示
   document.getElementById("summarySection").classList.remove("hidden");
   document.getElementById("chartsSection").classList.remove("hidden");
-  document.getElementById("distributionSection").classList.remove("hidden");
+  document.getElementById("teacherSection").classList.remove("hidden");
   document.getElementById("tableSection").classList.remove("hidden");
 
   // サマリーカード更新
@@ -76,67 +119,92 @@ function updateDashboard() {
 
 // サマリーカード更新
 function updateSummaryCards() {
-  // 先発品種類数
-  const originalDrugs = new Set(rawData.map((d) => d.originalDrugName));
-  document.getElementById("originalCount").textContent = originalDrugs.size;
+  // 学校数
+  const totalSchools = filteredData.reduce((sum, d) => sum + d.school, 0);
+  document.getElementById("schoolCount").textContent = totalSchools;
 
-  // 後発品種類数
-  const genericDrugs = new Set(rawData.map((d) => d.genericDrugName));
-  document.getElementById("genericCount").textContent = genericDrugs.size;
+  // 教員数
+  const totalTeachers = filteredData.reduce((sum, d) => sum + d.teacher, 0);
+  document.getElementById("teacherCount").textContent = totalTeachers.toLocaleString();
 
-  // 総数量
-  const totalQuantity = rawData.reduce((sum, d) => sum + d.quantity, 0);
-  document.getElementById("totalQuantity").textContent =
-    totalQuantity.toLocaleString();
+  // 生徒数（計）
+  const totalStudents = filteredData.reduce((sum, d) => sum + d.totalStudent, 0);
+  document.getElementById("totalStudent").textContent = totalStudents.toLocaleString();
 
-  // 平均薬価差
-  const avgPriceDiff =
-    rawData.reduce((sum, d) => sum + d.priceDiff, 0) / rawData.length;
-  document.getElementById(
-    "avgPriceDiff"
-  ).textContent = `¥${avgPriceDiff.toFixed(2)}`;
+  // 男女比
+  const totalMale = filteredData.reduce((sum, d) => sum + d.maleStudent, 0);
+  const totalFemale = filteredData.reduce((sum, d) => sum + d.femaleStudent, 0);
+  const malePercent = totalStudents > 0 ? ((totalMale / totalStudents) * 100).toFixed(1) : 0;
+  document.getElementById("genderRatio").textContent = `男 ${malePercent}%`;
 }
 
 // チャート更新
 function updateCharts() {
-  updateTop10Chart();
-  updatePriceComparisonChart();
-  updateQuantityDistributionChart();
+  updateGenderChart();
+  updateCategoryChart();
+  updateTypeChart();
+  updateYearTrendChart();
+  updateTeacherChart();
 }
 
-// 後発品医薬品 使用数量トップ10
-function updateTop10Chart() {
-  const quantityByGeneric = {};
-  rawData.forEach((d) => {
-    if (!quantityByGeneric[d.genericDrugName]) {
-      quantityByGeneric[d.genericDrugName] = 0;
+// 性別生徒数チャート
+function updateGenderChart() {
+  const totalMale = filteredData.reduce((sum, d) => sum + d.maleStudent, 0);
+  const totalFemale = filteredData.reduce((sum, d) => sum + d.femaleStudent, 0);
+
+  if (charts.gender) charts.gender.destroy();
+
+  const ctx = document.getElementById("genderChart").getContext("2d");
+  charts.gender = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["男", "女"],
+      datasets: [{
+        data: [totalMale, totalFemale],
+        backgroundColor: ["#FFB3D9", "#B3E5FC"],
+        borderColor: ["#FFC0E0", "#C0F0FF"],
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: "bottom",
+        },
+      },
+    },
+  });
+}
+
+// 学校種別別生徒数チャート
+function updateCategoryChart() {
+  const byCategory = {};
+  filteredData.forEach(d => {
+    if (!byCategory[d.category]) {
+      byCategory[d.category] = 0;
     }
-    quantityByGeneric[d.genericDrugName] += d.quantity;
+    byCategory[d.category] += d.totalStudent;
   });
 
-  const sorted = Object.entries(quantityByGeneric)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10);
+  const labels = Object.keys(byCategory);
+  const data = Object.values(byCategory);
+  const colors = ["#FFD9B3", "#FFB3D9"];
 
-  const labels = sorted.map((d) => d[0]);
-  const data = sorted.map((d) => d[1]);
+  if (charts.category) charts.category.destroy();
 
-  if (charts.top10) charts.top10.destroy();
-
-  const ctx = document.getElementById("top10Chart").getContext("2d");
-  charts.top10 = new Chart(ctx, {
+  const ctx = document.getElementById("categoryChart").getContext("2d");
+  charts.category = new Chart(ctx, {
     type: "bar",
     data: {
       labels: labels,
-      datasets: [
-        {
-          label: "使用数量",
-          data: data,
-          backgroundColor: "rgba(102, 126, 234, 0.8)",
-          borderColor: "rgba(102, 126, 234, 1)",
-          borderWidth: 1,
-        },
-      ],
+      datasets: [{
+        label: "生徒数",
+        data: data,
+        backgroundColor: colors.slice(0, labels.length),
+        borderColor: colors.slice(0, labels.length),
+        borderWidth: 1,
+      }]
     },
     options: {
       responsive: true,
@@ -149,143 +217,167 @@ function updateTop10Chart() {
       scales: {
         y: {
           beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return value.toLocaleString();
+            }
+          }
         },
       },
     },
   });
 }
 
-// 先発品と後発品の薬価比較
-function updatePriceComparisonChart() {
-  // 薬価が高い順にソートして上位10件を取得
-  const sortedByPrice = [...rawData]
-    .sort((a, b) => b.originalDrugPrice - a.originalDrugPrice)
-    .slice(0, 10);
+// 設置種別別生徒数チャート
+function updateTypeChart() {
+  const byType = {};
+  filteredData.forEach(d => {
+    if (!byType[d.type]) {
+      byType[d.type] = 0;
+    }
+    byType[d.type] += d.totalStudent;
+  });
 
-  const labels = sortedByPrice.map((d) => d.originalDrugName.substring(0, 20));
-  const originalPrices = sortedByPrice.map((d) => d.originalDrugPrice);
-  const genericPrices = sortedByPrice.map((d) => d.genericDrugPrice);
+  const labels = Object.keys(byType);
+  const data = Object.values(byType);
+  const colors = ["#FFB3D9", "#FFD9B3", "#B3E5FC", "#D9A5FF"];
 
-  if (charts.priceComparison) charts.priceComparison.destroy();
+  if (charts.type) charts.type.destroy();
 
-  const ctx = document.getElementById("priceComparisonChart").getContext("2d");
-  charts.priceComparison = new Chart(ctx, {
-    type: "bar",
+  const ctx = document.getElementById("typeChart").getContext("2d");
+  charts.type = new Chart(ctx, {
+    type: "pie",
     data: {
       labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: colors.slice(0, labels.length),
+        borderColor: "#fff",
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: "bottom",
+        },
+      },
+    },
+  });
+}
+
+// 年度別推移チャート
+function updateYearTrendChart() {
+  const byYear = {};
+  filteredData.forEach(d => {
+    if (!byYear[d.year]) {
+      byYear[d.year] = { male: 0, female: 0 };
+    }
+    byYear[d.year].male += d.maleStudent;
+    byYear[d.year].female += d.femaleStudent;
+  });
+
+  const years = Object.keys(byYear).sort((a, b) => a - b);
+  const maleData = years.map(year => byYear[year].male);
+  const femaleData = years.map(year => byYear[year].female);
+
+  if (charts.yearTrend) charts.yearTrend.destroy();
+
+  const ctx = document.getElementById("yearTrendChart").getContext("2d");
+  charts.yearTrend = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: years.map(y => y + "年度"),
       datasets: [
         {
-          label: "先発品薬価",
-          data: originalPrices,
-          backgroundColor: "rgba(246, 173, 85, 0.8)",
-          borderColor: "rgba(246, 173, 85, 1)",
-          borderWidth: 1,
+          label: "男",
+          data: maleData,
+          borderColor: "#FFB3D9",
+          backgroundColor: "rgba(255, 179, 217, 0.1)",
+          borderWidth: 2,
+          tension: 0.3,
         },
         {
-          label: "後発品薬価",
-          data: genericPrices,
-          backgroundColor: "rgba(102, 126, 234, 0.8)",
-          borderColor: "rgba(102, 126, 234, 1)",
-          borderWidth: 1,
-        },
-      ],
+          label: "女",
+          data: femaleData,
+          borderColor: "#B3E5FC",
+          backgroundColor: "rgba(179, 229, 252, 0.1)",
+          borderWidth: 2,
+          tension: 0.3,
+        }
+      ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: true,
       plugins: {
         legend: {
-          display: true,
           position: "top",
         },
       },
       scales: {
         y: {
           beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return value.toLocaleString();
+            }
+          }
         },
       },
     },
   });
 }
 
-// 後発品医薬品別 数量分布（折れ線グラフ、15項目）
-function updateQuantityDistributionChart() {
-  // 後発品ごとに数量を集計
-  const quantityByGeneric = {};
-  rawData.forEach((d) => {
-    if (!quantityByGeneric[d.genericDrugName]) {
-      quantityByGeneric[d.genericDrugName] = 0;
+// 教員数チャート
+function updateTeacherChart() {
+  const teacherData = {};
+  filteredData.forEach(d => {
+    const key = d.type + " - " + d.category;
+    if (!teacherData[key]) {
+      teacherData[key] = 0;
     }
-    quantityByGeneric[d.genericDrugName] += d.quantity;
+    teacherData[key] += d.teacher;
   });
 
-  // 数量が多い順にソートして上位15件を取得
-  const sorted = Object.entries(quantityByGeneric)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 15);
+  const labels = Object.keys(teacherData);
+  const data = Object.values(teacherData);
+  const colors = ["#FFB3D9", "#FFD9B3", "#B3E5FC", "#D9A5FF", "#B3FFD9", "#FFFFC0"];
 
-  const labels = sorted.map((d) => d[0]);
-  const data = sorted.map((d) => d[1]);
+  if (charts.teacher) charts.teacher.destroy();
 
-  if (charts.quantityDistribution) charts.quantityDistribution.destroy();
-
-  const ctx = document
-    .getElementById("quantityDistributionChart")
-    .getContext("2d");
-  charts.quantityDistribution = new Chart(ctx, {
-    type: "line",
+  const ctx = document.getElementById("teacherChart").getContext("2d");
+  charts.teacher = new Chart(ctx, {
+    type: "bar",
     data: {
       labels: labels,
-      datasets: [
-        {
-          label: "数量",
-          data: data,
-          borderColor: "rgba(102, 126, 234, 1)",
-          backgroundColor: "rgba(102, 126, 234, 0.1)",
-          borderWidth: 3,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          pointBackgroundColor: "rgba(102, 126, 234, 1)",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-        },
-      ],
+      datasets: [{
+        label: "教員数",
+        data: data,
+        backgroundColor: colors.slice(0, labels.length),
+        borderColor: colors.slice(0, labels.length),
+        borderWidth: 1,
+      }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      indexAxis: "y",
       plugins: {
         legend: {
-          display: true,
-          position: "top",
-        },
-        tooltip: {
-          mode: "index",
-          intersect: false,
+          display: false,
         },
       },
       scales: {
         x: {
-          ticks: {
-            maxRotation: 45,
-            minRotation: 45,
-          },
-        },
-        y: {
           beginAtZero: true,
           ticks: {
-            callback: function (value) {
+            callback: function(value) {
               return value.toLocaleString();
-            },
-          },
+            }
+          }
         },
-      },
-      interaction: {
-        mode: "nearest",
-        axis: "x",
-        intersect: false,
       },
     },
   });
@@ -303,15 +395,15 @@ function updateTable() {
   pageData.forEach((row) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-            <td>${row.yearMonth}</td>
-            <td>${row.originalDrugName}</td>
-            <td>¥${row.originalDrugPrice.toFixed(2)}</td>
-            <td>${row.genericDrugName}</td>
-            <td>¥${row.genericDrugPrice.toFixed(2)}</td>
-            <td>${row.quantity.toLocaleString()}</td>
-            <td>${row.unit}</td>
-            <td>¥${row.priceDiff.toFixed(2)}</td>
-        `;
+      <td>${row.year}年度</td>
+      <td>${row.type}</td>
+      <td>${row.category}</td>
+      <td>${row.school}</td>
+      <td>${row.teacher}</td>
+      <td>${row.maleStudent.toLocaleString()}</td>
+      <td>${row.femaleStudent.toLocaleString()}</td>
+      <td>${row.totalStudent.toLocaleString()}</td>
+    `;
     tbody.appendChild(tr);
   });
 

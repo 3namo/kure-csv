@@ -3,65 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ジェネリック医薬品ダッシュボード</title>
+    <title>呉市 高等学校・高等専門学校ダッシュボード</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>ジェネリック医薬品ダッシュボード</h1>
+            <h1>呉市 高等学校・高等専門学校データダッシュボード</h1>
+            <p style="color: #666; margin-top: 10px; font-size: 0.95rem;">
+                呉市内における高等学校・高等専門学校の男女別生徒数、教員数、学校数を可視化します
+            </p>
         </header>
 
-        <!-- CSVアップロードセクション -->
+        <!-- JSONアップロードセクション -->
         <div class="upload-section">
-            <label for="csvFile" class="upload-label">
-                <span>CSVファイルを選択</span>
-                <input type="file" id="csvFile" accept=".csv" />
+            <label for="jsonFile" class="upload-label">
+                <span>JSONファイルを選択</span>
+                <input type="file" id="jsonFile" accept=".json" />
             </label>
             <div id="uploadStatus"></div>
+        </div>
+
+        <!-- フィルターセクション -->
+        <div id="filterSection" class="filter-section hidden">
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <div>
+                    <label for="yearFilter" style="display: block; margin-bottom: 5px; font-weight: 600;">年度:</label>
+                    <select id="yearFilter">
+                        <option value="">すべて</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="typeFilter" style="display: block; margin-bottom: 5px; font-weight: 600;">設置種別:</label>
+                    <select id="typeFilter">
+                        <option value="">すべて</option>
+                        <option value="国立">国立</option>
+                        <option value="県立">県立</option>
+                        <option value="市立">市立</option>
+                        <option value="私立">私立</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="categoryFilter" style="display: block; margin-bottom: 5px; font-weight: 600;">学校種別:</label>
+                    <select id="categoryFilter">
+                        <option value="">すべて</option>
+                        <option value="高等学校">高等学校</option>
+                        <option value="工業高等専門学校">工業高等専門学校</option>
+                    </select>
+                </div>
+            </div>
         </div>
 
         <!-- サマリーカード -->
         <div id="summarySection" class="summary-section hidden">
             <div class="card">
-                <h3>先発品種類数</h3>
-                <p class="card-value" id="originalCount">-</p>
+                <h3>学校数</h3>
+                <p class="card-value" id="schoolCount">-</p>
             </div>
             <div class="card">
-                <h3>後発品種類数</h3>
-                <p class="card-value" id="genericCount">-</p>
+                <h3>教員数</h3>
+                <p class="card-value" id="teacherCount">-</p>
             </div>
             <div class="card">
-                <h3>総数量</h3>
-                <p class="card-value" id="totalQuantity">-</p>
+                <h3>生徒数（計）</h3>
+                <p class="card-value" id="totalStudent">-</p>
             </div>
             <div class="card">
-                <h3>平均薬価差</h3>
-                <p class="card-value" id="avgPriceDiff">-</p>
+                <h3>男女比</h3>
+                <p class="card-value" id="genderRatio">-</p>
             </div>
         </div>
 
         <!-- チャートセクション -->
         <div id="chartsSection" class="charts-section hidden">
-            <!-- 後発品医薬品 使用数量トップ10 -->
+            <!-- 性別生徒数比較 -->
             <div class="chart-container">
-                <h2>後発品医薬品 使用数量トップ10</h2>
-                <canvas id="top10Chart"></canvas>
+                <h2>性別生徒数</h2>
+                <canvas id="genderChart"></canvas>
             </div>
 
-            <!-- 先発品と後発品の薬価比較 -->
+            <!-- 学校種別別の生徒数 -->
             <div class="chart-container">
-                <h2>先発品と後発品の薬価比較</h2>
-                <canvas id="priceComparisonChart"></canvas>
+                <h2>学校種別別生徒数</h2>
+                <canvas id="categoryChart"></canvas>
+            </div>
+
+            <!-- 設置種別別の生徒数 -->
+            <div class="chart-container">
+                <h2>設置種別別生徒数</h2>
+                <canvas id="typeChart"></canvas>
+            </div>
+
+            <!-- 年度別推移 -->
+            <div class="chart-container">
+                <h2>年度別生徒数推移</h2>
+                <canvas id="yearTrendChart"></canvas>
             </div>
         </div>
 
-        <!-- 後発品医薬品別 数量分布 (全幅) -->
-        <div id="distributionSection" class="distribution-section hidden">
+        <!-- 教員数分析 (全幅) -->
+        <div id="teacherSection" class="distribution-section hidden">
             <div class="chart-container-full">
-                <h2>後発品医薬品別 数量分布</h2>
-                <canvas id="quantityDistributionChart"></canvas>
+                <h2>設置種別・学校種別別 教員数</h2>
+                <canvas id="teacherChart"></canvas>
             </div>
         </div>
 
@@ -74,21 +119,20 @@
                     <option value="10">10件</option>
                     <option value="25" selected>25件</option>
                     <option value="50">50件</option>
-                    <option value="100">100件</option>
                 </select>
             </div>
             <div class="table-wrapper">
                 <table id="dataTable">
                     <thead>
                         <tr>
-                            <th>年月</th>
-                            <th>先発医薬品名</th>
-                            <th>先発医薬品薬価</th>
-                            <th>後発医薬品名</th>
-                            <th>後発医薬品薬価</th>
-                            <th>数量</th>
-                            <th>単位</th>
-                            <th>薬価差</th>
+                            <th>年度</th>
+                            <th>設置種別</th>
+                            <th>学校種別</th>
+                            <th>学校数</th>
+                            <th>教員数</th>
+                            <th>男生徒数</th>
+                            <th>女生徒数</th>
+                            <th>計</th>
                         </tr>
                     </thead>
                     <tbody id="tableBody">

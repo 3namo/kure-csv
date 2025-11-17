@@ -6,7 +6,7 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #F0E6FF 0%, #FFE6F0 100%);
     min-height: 100vh;
     padding: 20px;
 }
@@ -14,6 +14,30 @@ body {
 .container {
     max-width: 1400px;
     margin: 0 auto;
+}
+
+/* フィルターセクション */
+.filter-section {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 30px;
+}
+
+.filter-section select {
+    padding: 10px 15px;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    background-color: white;
+    color: #2d3748;
+}
+
+.filter-section select:focus {
+    outline: none;
+    border-color: #FFB3D9;
 }
 
 header {
@@ -43,8 +67,8 @@ header h1 {
 .upload-label {
     display: inline-block;
     padding: 15px 30px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: linear-gradient(135deg, #FFB3D9 0%, #FFD9B3 100%);
+    color: #5A4A42;
     border-radius: 8px;
     cursor: pointer;
     font-size: 1.1rem;
@@ -97,7 +121,7 @@ header h1 {
 .card-value {
     font-size: 2rem;
     font-weight: bold;
-    color: #667eea;
+    color: #D9A5FF;
 }
 
 /* チャートセクション */
@@ -176,7 +200,7 @@ header h1 {
 
 #searchInput:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #FFB3D9;
 }
 
 #itemsPerPage {
@@ -224,8 +248,8 @@ tr:hover {
 
 .pagination button {
     padding: 10px 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: linear-gradient(135deg, #FFB3D9 0%, #FFD9B3 100%);
+    color: #5A4A42;
     border: none;
     border-radius: 6px;
     cursor: pointer;
